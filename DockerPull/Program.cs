@@ -1,4 +1,6 @@
 ﻿using ICSharpCode.SharpZipLib.Tar;
+using Microsoft.Extensions.Configuration;
+using System.Collections.Generic;
 using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
@@ -7,11 +9,22 @@ namespace DockerPull
 {
     internal class Program
     {
+        /// <summary>
+        /// docker pull nginx
+        /// docker pull nginx:stable-alpine3.20-perl
+        /// docker pull registry.baidubce.com/paddlepaddle/paddle:2.6.1-gpu-cuda11.7-cudnn8.4-trt8.4
+        /// docker pull bitnami/mysql:latest
+        /// docker pull bitnami/mysql:8.4.4-debian-12-r2
+        /// </summary>
         static async Task Main(string[] args)
         {
-            var repository = "library/redis";
+            var builder = new ConfigurationBuilder().AddCommandLine(args);
+            var configuration = builder.Build();
+            Console.WriteLine($"name:{configuration["name"]}"); //name:CLS
+            Console.WriteLine($"class:{configuration["class"]}");   //class:Class_A
+            var repository = "library/python";
             var registry = "registry-1.docker.io";
-            string tag = "latest";
+            string tag = "3.9-slim";
             string dir = "temp";
             HttpClientHandler handler = new HttpClientHandler
             {
@@ -123,10 +136,15 @@ namespace DockerPull
         static async Task Download_layers(string dir, string registry, string repository, string digest, DigestLayer digestLayer, HttpClientHandler handler, Dictionary<string, string> heads)
         {
             ManifestInfo manifestInfo = new ManifestInfo();
-            manifestInfo.RepoTags.Add("redis:latest");
+            manifestInfo.RepoTags.Add("python:3.9-slim");
             //下载镜像描述层
             var ManifestJsonPath = await Download_ManifestJson(dir, registry, repository, digest, digestLayer, handler, heads);
             manifestInfo.Config = ManifestJsonPath;
+            manifestInfo.Layers.AddRange(digestLayer.layers.Select(t=>t.GetId()));
+
+            var manifestjsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, dir, "manifest.json");
+            File.WriteAllText(manifestjsonPath, JsonSerializer.Serialize(new List<ManifestInfo>() { manifestInfo }));
+
             foreach (var layer in digestLayer.layers)
             {
                 var blob_digest = layer.digest;
@@ -142,7 +160,7 @@ namespace DockerPull
                         // 发送 HTTP 请求
                         var response = await client.GetAsync(url);
                         var gzipStream = await response.Content.ReadAsStreamAsync();
-                        var ids = blob_digest.Split(":")[1];
+                        var ids = layer.GetId();
                         var fileName = Path.Combine(dir, ids);
                         using (GZipStream decompressionStream = new GZipStream(gzipStream, CompressionMode.Decompress))
                         {
@@ -151,7 +169,6 @@ namespace DockerPull
                                 decompressionStream.CopyTo(file);
                             }
                         }
-                        manifestInfo.Layers.Add(ids);
                     }
                     catch (Exception ex)
                     {
@@ -159,9 +176,6 @@ namespace DockerPull
                     }
                 }
             }
-
-            var manifestjsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, dir, "manifest.json");
-            File.WriteAllText(manifestjsonPath, JsonSerializer.Serialize(new List<ManifestInfo>() { manifestInfo }));
 
             //var repo_tag = "";
             //var tag = "";
@@ -346,6 +360,10 @@ public class Layer
     public string mediaType { get; set; }
     public string digest { get; set; }
     public int size { get; set; }
+    public string GetId()
+    {
+        return digest.Split(":")[1];
+    }
 }
 
 public class ManifestInfo

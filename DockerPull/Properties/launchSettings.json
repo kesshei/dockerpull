@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DockerPull": {
+      "commandName": "Project",
+      "commandLineArgs": "docker.elastic.co/elasticsearch/elasticsearch:8.11.3 proxy 127.0.0.1:8000"
+    }
+  }
+}
