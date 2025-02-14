@@ -12,5 +12,9 @@ namespace DockerPull
         public string RegistryName { get; set; } = "library";
         public string ImageName { get; set; }
         public string RegistryTag { get; set; } = "latest";
+        public static dockerInfo Analysis(string args)
+        {
+            return null;
+        }
     }
 }
