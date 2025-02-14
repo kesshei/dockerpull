@@ -18,20 +18,19 @@ namespace DockerPull
         /// </summary>
         static async Task Main(string[] args)
         {
-            var builder = new ConfigurationBuilder().AddCommandLine(args);
-            var configuration = builder.Build();
-            Console.WriteLine($"name:{configuration["name"]}"); //name:CLS
-            Console.WriteLine($"class:{configuration["class"]}");   //class:Class_A
+            var config = DockerInfo.Analysis(args);
             var repository = "library/python";
             var registry = "registry-1.docker.io";
             string tag = "3.9-slim";
             string dir = "temp";
             HttpClientHandler handler = new HttpClientHandler
             {
-                Proxy = new WebProxy("127.0.0.1", 1080),
-                UseProxy = true,
                 ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
             };
+            if (!string.IsNullOrEmpty(config.Proxy))
+            {
+                handler.Proxy = new WebProxy(config.Proxy);
+            }
             var head = await GetRequestHeadAsync(registry, repository, handler);
             var manifestlist = await GetManifestAsync(registry, repository, tag, handler, head);
             var list = GetArchs(manifestlist);
@@ -140,7 +139,7 @@ namespace DockerPull
             //下载镜像描述层
             var ManifestJsonPath = await Download_ManifestJson(dir, registry, repository, digest, digestLayer, handler, heads);
             manifestInfo.Config = ManifestJsonPath;
-            manifestInfo.Layers.AddRange(digestLayer.layers.Select(t=>t.GetId()));
+            manifestInfo.Layers.AddRange(digestLayer.layers.Select(t => t.GetId()));
 
             var manifestjsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, dir, "manifest.json");
             File.WriteAllText(manifestjsonPath, JsonSerializer.Serialize(new List<ManifestInfo>() { manifestInfo }));
