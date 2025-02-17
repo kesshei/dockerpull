@@ -18,20 +18,29 @@ namespace DockerPull
         /// </summary>
         static async Task Main(string[] args)
         {
-            var config = DockerInfo.Analysis(args);
-            var repository = "library/python";
-            var registry = "registry-1.docker.io";
-            string tag = "3.9-slim";
-            string dir = "temp";
+            //var config = DockerInfo.Analysis(args);
+            var config = new DockerInfo();
+            config.ImageName = "redis";
             await GetRequestHeadAsync(config);
             var manifestlist = await GetManifestAsync(config);
             var list = GetArchs(manifestlist);
-            var digest = GetDigest("linux/amd64", manifestlist);
-            var layers = await GetLayerAsync(config, digest);
-            await Download_layers(config, layers);
-            //最后一步，压缩为一个tar文件
-            FilesToTar(Path.Combine(AppContext.BaseDirectory, dir), "test.tar");
-            Console.WriteLine("清空全部数据，包下载完毕!");
+            Console.WriteLine(string.Join(Environment.NewLine, list));
+            var digest = GetDigest(config, manifestlist);
+            if (string.IsNullOrEmpty(digest))
+            {
+                Console.WriteLine($"无法找到此架构:{config.GetVersion()}");
+                Console.WriteLine($"请选择这些可选架构:{string.Join("、", list)}");
+                Console.ReadLine();
+            }
+            else
+            {
+                var layers = await GetLayerAsync(config, digest);
+                await Download_layers(config, layers);
+                //最后一步，压缩为一个tar文件
+                FilesToTar(config);
+                Console.WriteLine("清空全部数据，包下载完毕!");
+                Console.ReadLine();
+            }
         }
         static async Task GetRequestHeadAsync(DockerInfo dockerInfo)
         {
@@ -42,14 +51,14 @@ namespace DockerPull
                 try
                 {
                     // 发送 HTTP 请求
-                    HttpResponseMessage response = await client.GetAsync($"https://{dockerInfo.Registry}/v2/");
+                    HttpResponseMessage response = await client.GetAsync(dockerInfo.GetRegistryUrl());
                     if (response.StatusCode == HttpStatusCode.Unauthorized)
                     {
                         response.Headers.TryGetValues("WWW-Authenticate", out var WwwAuthenticate);
 
                         var auth_url = WwwAuthenticate.First().Split('"')[1];
                         var reg_service = WwwAuthenticate.First().Split('"')[3];
-                        var url = $"{auth_url}?service={reg_service}&scope=repository:{dockerInfo.Repository}:pull";
+                        var url = $"{auth_url}?service={reg_service}&scope=repository:{dockerInfo.GetRepository()}:pull";
                         HttpResponseMessage response2 = await client.GetAsync(url);
                         string json = await response2.Content.ReadAsStringAsync();
                         var result = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
@@ -73,7 +82,7 @@ namespace DockerPull
                     {
                         client.DefaultRequestHeaders.Add(item.Key, item.Value);
                     }
-                    var url = $"https://{dockerInfo.Registry}/v2/{dockerInfo.Repository}/manifests/{dockerInfo.RegistryTag}";
+                    var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/manifests/{dockerInfo.RegistryTag}";
                     // 发送 HTTP 请求
                     var response = await client.GetAsync(url);
                     string json = await response.Content.ReadAsStringAsync();
@@ -91,9 +100,10 @@ namespace DockerPull
         {
             return manifests.manifests.Where(t => t.platform.IsTrue()).Select(t => t.platform.GetVersion()).ToList();
         }
-        static string GetDigest(string varsion, Manifests manifests)
+        static string GetDigest(DockerInfo dockerInfo, Manifests manifests)
         {
-            var dd = manifests.manifests.Where(t => t.platform.GetVersion() == varsion).FirstOrDefault();
+            var version = dockerInfo.GetVersion();
+            var dd = manifests.manifests.Where(t => t.platform.GetVersion() == version).FirstOrDefault();
             if (dd != null)
             {
                 return dd.digest;
@@ -110,7 +120,7 @@ namespace DockerPull
                     {
                         client.DefaultRequestHeaders.Add(item.Key, item.Value);
                     }
-                    var url = $"https://{dockerInfo.Registry}/v2/{dockerInfo.Repository}/manifests/{digest}";
+                    var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/manifests/{digest}";
                     // 发送 HTTP 请求
                     var response = await client.GetAsync(url);
                     string json = await response.Content.ReadAsStringAsync();
@@ -126,13 +136,13 @@ namespace DockerPull
         static async Task Download_layers(DockerInfo dockerInfo, DigestLayer digestLayer)
         {
             ManifestInfo manifestInfo = new ManifestInfo();
-            manifestInfo.RepoTags.Add("python:3.9-slim");
+            manifestInfo.RepoTags.Add(dockerInfo.tags());
             //下载镜像描述层
             var ManifestJsonPath = await Download_ManifestJson(dockerInfo, digestLayer);
             manifestInfo.Config = ManifestJsonPath;
             manifestInfo.Layers.AddRange(digestLayer.layers.Select(t => t.GetId()));
 
-            var manifestjsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, dockerInfo.tempdir, "manifest.json");
+            var manifestjsonPath = Path.Combine(dockerInfo.tempdir, "manifest.json");
             File.WriteAllText(manifestjsonPath, JsonSerializer.Serialize(new List<ManifestInfo>() { manifestInfo }));
 
             foreach (var layer in digestLayer.layers)
@@ -146,7 +156,7 @@ namespace DockerPull
                         {
                             client.DefaultRequestHeaders.Add(item.Key, item.Value);
                         }
-                        var url = $"https://{dockerInfo.Registry}/v2/{dockerInfo.Repository}/blobs/{blob_digest}";
+                        var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/blobs/{blob_digest}";
                         // 发送 HTTP 请求
                         var response = await client.GetAsync(url);
                         var gzipStream = await response.Content.ReadAsStreamAsync();
@@ -185,12 +195,12 @@ namespace DockerPull
                     {
                         client.DefaultRequestHeaders.Add(item.Key, item.Value);
                     }
-                    var url = $"https://{dockerInfo.Registry}/v2/{dockerInfo.Repository}/blobs/{digestLayer.config.digest}";
+                    var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/blobs/{digestLayer.config.digest}";
                     // 发送 HTTP 请求
                     var response = await client.GetAsync(url);
                     var json = await response.Content.ReadAsByteArrayAsync();
                     var list = digestLayer.config.digest.Split(":");
-                    var fileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, dockerInfo.tempdir, $"{list[1]}.json");
+                    var fileName = Path.Combine(dockerInfo.tempdir, $"{list[1]}.json");
                     var path = $"{list[1]}.json";
                     CheckFloder(fileName);
                     if (json[0] == 0x1f && json[1] == 0x8b && json[2] == 0x08 && json[3] == 0x00)
@@ -220,8 +230,10 @@ namespace DockerPull
                 Directory.CreateDirectory(directoryPath);
             }
         }
-        static void FilesToTar(string sourceDirectory, string tarFilePath, bool recurse = true)
+        static void FilesToTar(DockerInfo dockerInfo, bool recurse = true)
         {
+            var sourceDirectory = dockerInfo.tempdir;
+            var tarFilePath = dockerInfo.tarName();
             try
             {
                 // 创建一个文件流用于写入 tar 文件
@@ -232,7 +244,7 @@ namespace DockerPull
                     AddDirectoryFilesToTar(tarArchive, sourceDirectory, true);
                 }
                 Console.WriteLine("打包完成，文件已保存到: " + tarFilePath);
-                Directory.Delete(Path.Combine(AppContext.BaseDirectory, tarFilePath), true);
+                Directory.Delete(sourceDirectory, true);
             }
             catch (Exception ex)
             {
