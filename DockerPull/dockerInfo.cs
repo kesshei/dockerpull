@@ -98,12 +98,55 @@ namespace DockerPull
             var configuration = builder.Build();
             Console.WriteLine($"name:{configuration["name"]}"); //name:CLS
             Console.WriteLine($"class:{configuration["class"]}");   //class:Class_A
+
+
             return null;
         }
         public void Check()
         {
-            List<string> args = new List<string>() { "" };
-
+            string[] dockerPullCommands = {
+            "docker pull nginx",
+            "docker pull nginx:stable-alpine3.20-perl",
+            "docker pull registry.baidubce.com/paddlepaddle/paddle:2.6.1-gpu-cuda11.7-cudnn8.4-trt8.4",
+            "docker pull bitnami/mysql:latest",
+            "docker pull bitnami/mysql:8.4.4-debian-12-r2",
+            "docker pull xuxueli/xxl-job-admin:2.4.2",
+            "docker pull docker:28.0.0-rc.1-dind-alpine3.21",
+            "docker pull audithsoftworks/docker:php-ci",
+            "docker pull rancher/rpardini-docker-registry-proxy:0.6.1-amd64",
+            "docker pull docker.elastic.co/elasticsearch/elasticsearch:8.0.0-alpha2-arm64",
+            "docker pull registry.cn-beijing.aliyuncs.com/205huang/wms-app:v1"
+            };
+            foreach (var dockerCommand in dockerPullCommands)
+            {
+                string domain = "";
+                string repository = "";
+                string imageName = "";
+                string tag = "latest"; // 默认标记为 latest
+                var command = dockerCommand.Replace("docker pull ", "").Replace("https://", "").Replace("http://", "");
+                var datas = command.Split(":");
+                if (datas.Length > 1)
+                {
+                    tag = datas[1];
+                }
+                var registrys = datas[0].Split("/", StringSplitOptions.RemoveEmptyEntries);
+                if (registrys.Length == 1)
+                {
+                    imageName = registrys[0];
+                }
+                else if (registrys.Length == 2)
+                {
+                    imageName = registrys[1];
+                    repository = registrys[0];
+                }
+                else if (registrys.Length == 3)
+                {
+                    imageName = registrys[2];
+                    repository = registrys[1];
+                    domain = registrys[0];
+                }
+                Console.WriteLine($"命令:{command} 解析: domain :{domain} repository:{repository} imageName:{imageName} tag:{tag}");
+            }
         }
     }
 }

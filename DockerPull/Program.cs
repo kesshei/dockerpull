@@ -18,9 +18,9 @@ namespace DockerPull
         /// </summary>
         static async Task Main(string[] args)
         {
-            //var config = DockerInfo.Analysis(args);
-            var config = new DockerInfo();
-            config.ImageName = "redis";
+            new DockerInfo().Check();
+            var config = DockerInfo.Analysis(args);
+             config.ImageName = "redis";
             await GetRequestHeadAsync(config);
             var manifestlist = await GetManifestAsync(config);
             var list = GetArchs(manifestlist);
