@@ -1,6 +1,4 @@
 ﻿using ICSharpCode.SharpZipLib.Tar;
-using Microsoft.Extensions.Configuration;
-using System.Collections.Generic;
 using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
@@ -9,22 +7,47 @@ namespace DockerPull
 {
     internal class Program
     {
-        /// <summary>
-        /// docker pull nginx
-        /// docker pull nginx:stable-alpine3.20-perl
-        /// docker pull registry.baidubce.com/paddlepaddle/paddle:2.6.1-gpu-cuda11.7-cudnn8.4-trt8.4
-        /// docker pull bitnami/mysql:latest
-        /// docker pull bitnami/mysql:8.4.4-debian-12-r2
-        /// </summary>
         static async Task Main(string[] args)
         {
             //new DockerInfo().Check();
             var config = DockerInfo.Analysis(args);
-            config.ImageName = "redis";
-            await GetRequestHeadAsync(config);
-            var manifestlist = await GetManifestAsync(config);
+            await RetryHelper.RetryAsync(async () =>
+            {
+                await GetRequestHeadAsync(config);
+                if (config.Sessions == null)
+                {
+                    throw new Exception("网络异常，无法连接");
+                }
+                return "操作成功";
+            }, maxRetries: 5);
+
+            if (config.Sessions == null)
+            {
+                Console.WriteLine($"网络异常，无法连接");
+                Console.ReadLine();
+                return;
+            }
+
+            var manifestlist = await RetryHelper.RetryAsync(async () =>
+            {
+                var manifestlist = await GetManifestAsync(config);
+                if (manifestlist.schemaVersion < 1)
+                {
+                    throw new Exception("无法找到镜像信息,请确认输入是否正确!");
+                }
+                return manifestlist;
+            }, maxRetries: 5);
+
+            if (manifestlist.schemaVersion < 1)
+            {
+                Console.WriteLine($"无法找到镜像信息,请确认输入是否正确!");
+                Console.ReadLine();
+                return;
+            }
             var list = GetArchs(manifestlist);
+            Console.WriteLine("可选架构列表：");
             Console.WriteLine(string.Join(Environment.NewLine, list));
+            Console.WriteLine();
             var digest = GetDigest(config, manifestlist);
             if (string.IsNullOrEmpty(digest))
             {
@@ -34,7 +57,22 @@ namespace DockerPull
             }
             else
             {
-                var layers = await GetLayerAsync(config, digest);
+                var layers = await RetryHelper.RetryAsync(async () =>
+                {
+                    var layers = await GetLayerAsync(config, digest);
+                    if (layers == null)
+                    {
+                        throw new Exception("无法找到镜像层信息信息,请重新下载!");
+                    }
+                    return layers;
+                }, maxRetries: 5);
+
+                if (layers == null)
+                {
+                    Console.WriteLine($"无法找到镜像层信息信息,请重新下载!");
+                    Console.ReadLine();
+                    return;
+                }
                 await Download_layers(config, layers);
                 //最后一步，压缩为一个tar文件
                 FilesToTar(config);
@@ -46,7 +84,7 @@ namespace DockerPull
         {
             Dictionary<string, string> dic = new Dictionary<string, string>();
             dic.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json");
-            using (HttpClient client = new HttpClient(dockerInfo.GetHttpClientHandler(), false))
+            using (HttpClient client = new HttpClient(dockerInfo.GetHttpClientHandler()))
             {
                 try
                 {
@@ -68,6 +106,7 @@ namespace DockerPull
                 }
                 catch (Exception ex)
                 {
+                    dockerInfo.Sessions = null;
                     Console.WriteLine($"请求出错: {ex.Message}");
                 }
             }
@@ -80,7 +119,7 @@ namespace DockerPull
                 {
                     foreach (var item in dockerInfo.Sessions)
                     {
-                        client.DefaultRequestHeaders.Add(item.Key, item.Value);
+                        client.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
                     }
                     var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/manifests/{dockerInfo.RegistryTag}";
                     // 发送 HTTP 请求
@@ -118,7 +157,7 @@ namespace DockerPull
                 {
                     foreach (var item in dockerInfo.Sessions)
                     {
-                        client.DefaultRequestHeaders.Add(item.Key, item.Value);
+                        client.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
                     }
                     var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/manifests/{digest}";
                     // 发送 HTTP 请求
@@ -144,39 +183,74 @@ namespace DockerPull
 
             var manifestjsonPath = Path.Combine(dockerInfo.tempdir, "manifest.json");
             File.WriteAllText(manifestjsonPath, JsonSerializer.Serialize(new List<ManifestInfo>() { manifestInfo }));
-
+            Console.WriteLine($"{dockerInfo.RegistryTag}: Pulling from {dockerInfo.GetRepository()}");
+            var prgslist = new List<ProgressBar>();
+            var index = 0;
+            //downing
             foreach (var layer in digestLayer.layers)
             {
                 var blob_digest = layer.digest;
-                using (HttpClient client = new HttpClient(dockerInfo.GetHttpClientHandler()))
-                {
-                    try
-                    {
-                        foreach (var item in dockerInfo.Sessions)
-                        {
-                            client.DefaultRequestHeaders.Add(item.Key, item.Value);
-                        }
-                        var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/blobs/{blob_digest}";
-                        // 发送 HTTP 请求
-                        var response = await client.GetAsync(url);
-                        var gzipStream = await response.Content.ReadAsStreamAsync();
-                        var ids = layer.GetId();
-                        var fileName = Path.Combine(dockerInfo.tempdir, ids);
-                        using (GZipStream decompressionStream = new GZipStream(gzipStream, CompressionMode.Decompress))
-                        {
-                            using (FileStream file = File.Open(fileName, FileMode.CreateNew))
-                            {
-                                decompressionStream.CopyTo(file);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"请求出错: {ex.Message}");
-                    }
-                }
+                var ProgressBar2 = new ProgressBar(Console.CursorTop + index, $"{new string(blob_digest.Skip(7).Take(12).ToArray())}");
+                ProgressBar2.Change(0);
+                prgslist.Add(ProgressBar2);
             }
+            foreach (var layer in digestLayer.layers)
+            {
+                var blob_digest = layer.digest;
+                var ProgressBar2 = prgslist[index];
+                await RetryHelper.RetryAsync(async () =>
+                 {
+                     using (HttpClient client = new HttpClient(dockerInfo.GetHttpClientHandler()))
+                     {
+                         foreach (var item in dockerInfo.Sessions)
+                         {
+                             client.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
+                         }
+                         var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/blobs/{blob_digest}";
+                         // 发送 HTTP 请求
+                         var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                         response.EnsureSuccessStatusCode();
+                         // 获取总字节数
+                         var totalBytes = response.Content.Headers.ContentLength.GetValueOrDefault();
+                         ProgressBar2.SetValue("other", $"{0}B / {Tools.GetStringSize(totalBytes)}");
+                         var gzipStream = await response.Content.ReadAsStreamAsync();
+                         var ids = layer.GetId();
+                         var gzipfileName = Path.Combine(dockerInfo.tempdir, $"{ids}.gzip");
+                         var fileName = Path.Combine(dockerInfo.tempdir, ids);
 
+                         using (FileStream file = File.Open(gzipfileName, FileMode.CreateNew))
+                         {
+                             byte[] buffer = new byte[1024 * 4];
+                             long bytesRead = 0;
+                             int read;
+
+                             while ((read = await gzipStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                             {
+                                 await file.WriteAsync(buffer, 0, read);
+                                 bytesRead += read;
+
+                                 // 计算下载进度
+                                 double progress = (double)bytesRead / totalBytes * 100;
+                                 ProgressBar2.SetValue("other", $"{Tools.GetStringSize(bytesRead)} / {Tools.GetStringSize(totalBytes)}");
+                                 ProgressBar2.Change((int)progress);
+                             }
+                         }
+
+                         using (GZipStream decompressionStream = new GZipStream(File.Open(gzipfileName, FileMode.Open), CompressionMode.Decompress))
+                         {
+                             using (FileStream file = File.Open(fileName, FileMode.CreateNew))
+                             {
+                                 decompressionStream.CopyTo(file);
+                             }
+                         }
+                         File.Delete(gzipfileName);
+                     }
+                     return "成功";
+                 }, maxRetries: 5);
+
+                prgslist.Add(ProgressBar2);
+                index++;
+            }
             //var repo_tag = "";
             //var tag = "";
             //var fake_layerid = "";
@@ -193,7 +267,7 @@ namespace DockerPull
                 {
                     foreach (var item in dockerInfo.Sessions)
                     {
-                        client.DefaultRequestHeaders.Add(item.Key, item.Value);
+                        client.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
                     }
                     var url = $"{dockerInfo.GetRegistryUrl()}{dockerInfo.GetRepository()}/blobs/{digestLayer.config.digest}";
                     // 发送 HTTP 请求
@@ -233,7 +307,7 @@ namespace DockerPull
         static void FilesToTar(DockerInfo dockerInfo, bool recurse = true)
         {
             var sourceDirectory = dockerInfo.tempdir;
-            var tarFilePath = dockerInfo.tarName();
+            var tarFilePath = Path.Combine(dockerInfo.output, dockerInfo.tarName());
             try
             {
                 // 创建一个文件流用于写入 tar 文件

@@ -1,2 +1,16 @@
 # dockerpull
-一个本地的可以配置代理的本地拉取镜像工具
+一个本地的可以配置代理的本地拉取镜像工具，主要是可以配置代理，方便使用
+
+下载后，在命令处生成 tar文件，然后，使用 
+
+docker load -i xxx.tar 即可导入镜像了。
+
+
+
+## 示例
+dockerpull elasticsearch:8.16.4 --proxy http://127.0.0.1:1080
+
+### 扩展参数
+--output 输出目录 （默认当前目录下）
+--proxy 代理地址
+--arch  架构类型，默认为 linux/amd64

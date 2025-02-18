@@ -18,7 +18,11 @@ namespace DockerPull
             {
                 tempDir = Path.Combine(AppContext.BaseDirectory, dir, Guid.NewGuid().ToString("N"));
             }
-            tempDir = Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N"));
+            else
+            {
+                tempDir = Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N"));
+            }
+
             if (!Directory.Exists(tempDir))
             {
                 Directory.CreateDirectory(tempDir);
@@ -56,7 +60,7 @@ namespace DockerPull
         /// <summary>
         /// 代理地址
         /// </summary>
-        public string Proxy { get; set; } = "http://127.0.0.1:1080";
+        public string Proxy { get; set; }
         /// <summary>
         /// 临时文件夹
         /// </summary>
@@ -65,17 +69,9 @@ namespace DockerPull
         /// 输出目录
         /// </summary>
         public string output { get; set; } = AppContext.BaseDirectory;
-        public bool IsVersion2 { get; set; } = true;
         public string GetRegistryUrl()
         {
-            if (IsVersion2)
-            {
-                return $"https://{Registry}/v2/";
-            }
-            else
-            {
-                return $"https://{Registry}/";
-            }
+            return $"https://{Registry}/v2/";
         }
         public string GetRepository()
         {
