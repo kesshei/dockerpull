@@ -28,16 +28,43 @@ namespace DockerPull
     }
     public class DockerInfo
     {
+        /// <summary>
+        /// 仓库源地址
+        /// </summary>
         public string Registry { get; set; } = "registry-1.docker.io";
+        /// <summary>
+        /// 仓库名
+        /// </summary>
         public string Repository { get; set; } = "library";
+        /// <summary>
+        /// 镜像名
+        /// </summary>
         public string ImageName { get; set; }
+        /// <summary>
+        /// 镜像标记名
+        /// </summary>
         public string RegistryTag { get; set; } = "latest";
+        /// <summary>
+        /// 系统
+        /// </summary>
         public string OS { get; set; } = "linux";
+        /// <summary>
+        /// cpu架构
+        /// </summary>
         public string Arch { get; set; } = "amd64";
         public string Variant { get; set; }
+        /// <summary>
+        /// 代理地址
+        /// </summary>
         public string Proxy { get; set; } = "http://127.0.0.1:1080";
+        /// <summary>
+        /// 临时文件夹
+        /// </summary>
         public string tempdir { get; set; } = DirTools.GetTempFileName("temp");
-        public bool canUse { get; set; }
+        /// <summary>
+        /// 输出目录
+        /// </summary>
+        public string output { get; set; } = AppContext.BaseDirectory;
         public bool IsVersion2 { get; set; } = true;
         public string GetRegistryUrl()
         {
@@ -94,12 +121,32 @@ namespace DockerPull
         }
         public static DockerInfo Analysis(string[] args)
         {
-            var builder = new ConfigurationBuilder().AddCommandLine(args);
-            var configuration = builder.Build();
-            Console.WriteLine($"name:{configuration["name"]}"); //name:CLS
-            Console.WriteLine($"class:{configuration["class"]}");   //class:Class_A
-
-
+            if (args.Length > 0)
+            {
+                var config = Parse(args[0]);
+                if (config != null)
+                {
+                    var builder = new ConfigurationBuilder().AddCommandLine(args);
+                    var configuration = builder.Build();
+                    if (!string.IsNullOrEmpty(configuration["registry"]))
+                    {
+                        config.Registry = configuration["registry"];
+                    }
+                    if (!string.IsNullOrEmpty(configuration["arch"]))
+                    {
+                        config.Registry = configuration["arch"];
+                    }
+                    if (!string.IsNullOrEmpty(configuration["proxy"]))
+                    {
+                        config.Proxy = configuration["proxy"];
+                    }
+                    if (!string.IsNullOrEmpty(configuration["output"]))
+                    {
+                        config.output = configuration["output"];
+                    }
+                    return config;
+                }
+            }
             return null;
         }
         public void Check()
@@ -119,34 +166,60 @@ namespace DockerPull
             };
             foreach (var dockerCommand in dockerPullCommands)
             {
-                string domain = "";
-                string repository = "";
-                string imageName = "";
-                string tag = "latest"; // 默认标记为 latest
-                var command = dockerCommand.Replace("docker pull ", "").Replace("https://", "").Replace("http://", "");
-                var datas = command.Split(":");
-                if (datas.Length > 1)
-                {
-                    tag = datas[1];
-                }
-                var registrys = datas[0].Split("/", StringSplitOptions.RemoveEmptyEntries);
-                if (registrys.Length == 1)
-                {
-                    imageName = registrys[0];
-                }
-                else if (registrys.Length == 2)
-                {
-                    imageName = registrys[1];
-                    repository = registrys[0];
-                }
-                else if (registrys.Length == 3)
-                {
-                    imageName = registrys[2];
-                    repository = registrys[1];
-                    domain = registrys[0];
-                }
-                Console.WriteLine($"命令:{command} 解析: domain :{domain} repository:{repository} imageName:{imageName} tag:{tag}");
+                var config = Parse(dockerCommand);
+                Console.WriteLine($"命令:{dockerCommand} 解析: domain :{config.Registry} repository:{config.Repository} imageName:{config.ImageName} tag:{config.RegistryTag}");
             }
+        }
+        public static DockerInfo Parse(string dockerCommand)
+        {
+            DockerInfo dockerInfo = new DockerInfo();
+            string domain = "";
+            string repository = "";
+            string imageName = "";
+            string tag = "";
+            var command = dockerCommand.Replace("docker pull ", "").Replace("https://", "").Replace("http://", "");
+            var datas = command.Split(":");
+            if (datas.Length > 1)
+            {
+                tag = datas[1];
+            }
+            var registrys = datas[0].Split("/", StringSplitOptions.RemoveEmptyEntries);
+            if (registrys.Length == 1)
+            {
+                imageName = registrys[0];
+            }
+            else if (registrys.Length == 2)
+            {
+                imageName = registrys[1];
+                repository = registrys[0];
+            }
+            else if (registrys.Length == 3)
+            {
+                imageName = registrys[2];
+                repository = registrys[1];
+                domain = registrys[0];
+            }
+            if (!string.IsNullOrEmpty(imageName))
+            {
+                dockerInfo.ImageName = imageName;
+            }
+            else
+            {
+                return null;
+            }
+            if (!string.IsNullOrEmpty(domain))
+            {
+                dockerInfo.Registry = domain;
+            }
+            if (!string.IsNullOrEmpty(repository))
+            {
+                dockerInfo.Repository = repository;
+            }
+            if (!string.IsNullOrEmpty(tag))
+            {
+                dockerInfo.RegistryTag = tag;
+            }
+            return dockerInfo;
         }
     }
 }
