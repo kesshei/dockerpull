@@ -130,11 +130,23 @@ namespace DockerPull
                     var configuration = builder.Build();
                     if (!string.IsNullOrEmpty(configuration["registry"]))
                     {
-                        config.Registry = configuration["registry"];
+                        config.Registry = new Uri(configuration["registry"]).Host;
                     }
                     if (!string.IsNullOrEmpty(configuration["arch"]))
                     {
-                        config.Registry = configuration["arch"];
+                        var archs = configuration["arch"].Split("/");
+                        if (archs.Length > 0)
+                        {
+                            config.OS = archs[0];
+                        }
+                        if (archs.Length > 1)
+                        {
+                            config.Arch = archs[1];
+                        }
+                        if (archs.Length > 2)
+                        {
+                            config.Variant = archs[2];
+                        }
                     }
                     if (!string.IsNullOrEmpty(configuration["proxy"]))
                     {
@@ -177,7 +189,7 @@ namespace DockerPull
             string repository = "";
             string imageName = "";
             string tag = "";
-            var command = dockerCommand.Replace("docker pull ", "").Replace("https://", "").Replace("http://", "");
+            var command = dockerCommand.Replace("docker pull ", "");
             var datas = command.Split(":");
             if (datas.Length > 1)
             {
@@ -198,7 +210,13 @@ namespace DockerPull
                 imageName = registrys[2];
                 repository = registrys[1];
                 domain = registrys[0];
+                if (domain.Contains(":"))
+                {
+                    domain = new Uri(domain).Host;
+                }
             }
+
+
             if (!string.IsNullOrEmpty(imageName))
             {
                 dockerInfo.ImageName = imageName;
