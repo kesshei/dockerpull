@@ -24,7 +24,6 @@ namespace DockerPull
             if (config.Sessions == null)
             {
                 Console.WriteLine($"网络异常，无法连接");
-                Console.ReadLine();
                 return;
             }
 
@@ -41,7 +40,6 @@ namespace DockerPull
             if (manifestlist.schemaVersion < 1)
             {
                 Console.WriteLine($"无法找到镜像信息,请确认输入是否正确!");
-                Console.ReadLine();
                 return;
             }
             var list = GetArchs(manifestlist);
@@ -53,7 +51,6 @@ namespace DockerPull
             {
                 Console.WriteLine($"无法找到此架构:{config.GetVersion()}");
                 Console.WriteLine($"请选择这些可选架构:{string.Join("、", list)}");
-                Console.ReadLine();
             }
             else
             {
@@ -70,14 +67,12 @@ namespace DockerPull
                 if (layers == null)
                 {
                     Console.WriteLine($"无法找到镜像层信息信息,请重新下载!");
-                    Console.ReadLine();
                     return;
                 }
                 await Download_layers(config, layers);
                 //最后一步，压缩为一个tar文件
                 FilesToTar(config);
                 Console.WriteLine("清空全部数据，包下载完毕!");
-                Console.ReadLine();
             }
         }
         static async Task GetRequestHeadAsync(DockerInfo dockerInfo)
@@ -185,19 +180,14 @@ namespace DockerPull
             File.WriteAllText(manifestjsonPath, JsonSerializer.Serialize(new List<ManifestInfo>() { manifestInfo }));
             Console.WriteLine($"{dockerInfo.RegistryTag}: Pulling from {dockerInfo.GetRepository()}");
             var prgslist = new List<ProgressBar>();
-            var index = 0;
-            //downing
             foreach (var layer in digestLayer.layers)
             {
                 var blob_digest = layer.digest;
-                var ProgressBar2 = new ProgressBar(Console.CursorTop + index, $"{new string(blob_digest.Skip(7).Take(12).ToArray())}");
+                Console.WriteLine();
+                Console.WriteLine();
+                Console.WriteLine();
+                var ProgressBar2 = new ProgressBar(Console.CursorTop - 3, $"{new string(blob_digest.Skip(7).Take(12).ToArray())}");
                 ProgressBar2.Change(0);
-                prgslist.Add(ProgressBar2);
-            }
-            foreach (var layer in digestLayer.layers)
-            {
-                var blob_digest = layer.digest;
-                var ProgressBar2 = prgslist[index];
                 await RetryHelper.RetryAsync(async () =>
                  {
                      using (HttpClient client = new HttpClient(dockerInfo.GetHttpClientHandler()))
@@ -249,7 +239,6 @@ namespace DockerPull
                  }, maxRetries: 5);
 
                 prgslist.Add(ProgressBar2);
-                index++;
             }
             //var repo_tag = "";
             //var tag = "";

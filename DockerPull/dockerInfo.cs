@@ -16,11 +16,11 @@ namespace DockerPull
             var tempDir = string.Empty;
             if (!string.IsNullOrEmpty(dir))
             {
-                tempDir = Path.Combine(AppContext.BaseDirectory, dir, Guid.NewGuid().ToString("N"));
+                tempDir = Path.Combine(Environment.CurrentDirectory, dir, Guid.NewGuid().ToString("N"));
             }
             else
             {
-                tempDir = Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N"));
+                tempDir = Path.Combine(Environment.CurrentDirectory, Guid.NewGuid().ToString("N"));
             }
 
             if (!Directory.Exists(tempDir))
@@ -68,7 +68,7 @@ namespace DockerPull
         /// <summary>
         /// 输出目录
         /// </summary>
-        public string output { get; set; } = AppContext.BaseDirectory;
+        public string output { get; set; } = Environment.CurrentDirectory;
         public string GetRegistryUrl()
         {
             return $"https://{Registry}/v2/";

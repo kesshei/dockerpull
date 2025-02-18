@@ -14,3 +14,12 @@ dockerpull elasticsearch:8.16.4 --proxy http://127.0.0.1:1080
 --output 输出目录 （默认当前目录下）
 --proxy 代理地址
 --arch  架构类型，默认为 linux/amd64
+
+
+### 安装
+
+windows 请添加命令到 环境变量中 Path中。
+
+linux  下
+复制到 /usr/local/bin/dockerpull 目录 
+然后使用 chmod + x /usr/local/bin/dockerpull 添加执行权限
