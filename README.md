@@ -23,3 +23,11 @@ windows 请添加命令到 环境变量中 Path中。
 linux  下
 复制到 /usr/local/bin/dockerpull 目录 
 然后使用 chmod + x /usr/local/bin/dockerpull 添加执行权限
+
+
+
+### 主要参考
+```
+https://distribution.github.io/distribution/spec/api/
+https://github.com/topcss/docker-pull-tar
+```
