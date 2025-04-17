@@ -56,6 +56,7 @@ namespace DockerPull
         /// cpu架构
         /// </summary>
         public string Arch { get; set; } = "amd64";
+        public string defaultArch = "linux/amd64";
         public string Variant { get; set; }
         /// <summary>
         /// 代理地址
