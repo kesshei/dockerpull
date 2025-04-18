@@ -2,7 +2,7 @@
   "profiles": {
     "DockerPull": {
       "commandName": "Project",
-      "commandLineArgs": "redis/redis-stack-server:6.2.6-v19-x86_64 --proxy http://127.0.0.1:1080"
+      "commandLineArgs": "memcached:latest --proxy http://127.0.0.1:1080"
     }
   }
 }

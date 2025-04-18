@@ -171,7 +171,8 @@ namespace DockerPull
             "docker pull audithsoftworks/docker:php-ci",
             "docker pull rancher/rpardini-docker-registry-proxy:0.6.1-amd64",
             "docker pull docker.elastic.co/elasticsearch/elasticsearch:8.0.0-alpha2-arm64",
-            "docker pull registry.cn-beijing.aliyuncs.com/205huang/wms-app:v1"
+            "docker pull registry.cn-beijing.aliyuncs.com/205huang/wms-app:v1",
+            "docker pull mcr.microsoft.com/dotnet/nightly/aspnet:9.0"
             };
             foreach (var dockerCommand in dockerPullCommands)
             {
@@ -187,31 +188,71 @@ namespace DockerPull
             string imageName = "";
             string tag = "";
             var command = dockerCommand.Replace("docker pull ", "");
-            var datas = command.Split(":");
-            if (datas.Length > 1)
+            var lastIndex = command.LastIndexOf("/");
+            var headIndex = command.IndexOf("/");
+
+            if (lastIndex > -1)
             {
-                tag = datas[1];
-            }
-            var registrys = datas[0].Split("/", StringSplitOptions.RemoveEmptyEntries);
-            if (registrys.Length == 1)
-            {
-                imageName = registrys[0];
-            }
-            else if (registrys.Length == 2)
-            {
-                imageName = registrys[1];
-                repository = registrys[0];
-            }
-            else if (registrys.Length == 3)
-            {
-                imageName = registrys[2];
-                repository = registrys[1];
-                domain = registrys[0];
-                if (domain.Contains(":"))
+                if (lastIndex == headIndex)
                 {
-                    domain = new Uri(domain).Host;
+                    repository = command.Substring(0, lastIndex);
                 }
+                else
+                {
+                    domain = command.Substring(0, headIndex);
+                    repository = command.Substring(headIndex + 1, lastIndex - headIndex - 1);
+                }
+                var datas = command.Substring(lastIndex+1).Split(":");
+                if (datas.Length > 1)
+                {
+                    tag = datas[1];
+                }
+                imageName = datas[0];
             }
+            else
+            {
+                var datas = command.Split(":");
+                if (datas.Length > 1)
+                {
+                    tag = datas[1];
+                }
+                imageName = datas[0];
+            }
+            //var datas = command.Split(":");
+            //if (datas.Length > 1)
+            //{
+            //    tag = datas[1];
+            //}
+            //var registrys = datas[0].Split("/", StringSplitOptions.RemoveEmptyEntries);
+            //if (registrys.Length == 1)
+            //{
+            //    imageName = registrys[0];
+            //}
+            //else if (registrys.Length == 2)
+            //{
+            //    imageName = registrys[1];
+            //    repository = registrys[0];
+            //}
+            //else if (registrys.Length == 3)
+            //{
+            //    imageName = registrys[2];
+            //    repository = registrys[1];
+            //    domain = registrys[0];
+            //    if (domain.Contains(":"))
+            //    {
+            //        domain = new Uri(domain).Host;
+            //    }
+            //}
+            //else if (registrys.Length == 3)
+            //{
+            //    imageName = registrys[2];
+            //    repository = registrys[1];
+            //    domain = registrys[0];
+            //    if (domain.Contains(":"))
+            //    {
+            //        domain = new Uri(domain).Host;
+            //    }
+            //}
 
 
             if (!string.IsNullOrEmpty(imageName))
