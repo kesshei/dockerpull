@@ -172,7 +172,8 @@ namespace DockerPull
             "docker pull rancher/rpardini-docker-registry-proxy:0.6.1-amd64",
             "docker pull docker.elastic.co/elasticsearch/elasticsearch:8.0.0-alpha2-arm64",
             "docker pull registry.cn-beijing.aliyuncs.com/205huang/wms-app:v1",
-            "docker pull mcr.microsoft.com/dotnet/nightly/aspnet:9.0"
+            "docker pull mcr.microsoft.com/dotnet/nightly/aspnet:9.0",
+            "redis/redis-stack-server:6.2.6-v19-x86_64"
             };
             foreach (var dockerCommand in dockerPullCommands)
             {

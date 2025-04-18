@@ -37,9 +37,9 @@ namespace DockerPull
             {
                 var digest = string.Empty;
                 var Manifests = manifestlist.Manifests;
-                if (Manifests.schemaVersion < 1)
+                if (Manifests.schemaVersion != 2)
                 {
-                    Console.WriteLine($"无法找到镜像信息,请确认输入是否正确!");
+                    Console.WriteLine($"不支持此协议 schemaVersion:{Manifests.schemaVersion}!");
                     return;
                 }
                 if (Manifests.manifests?.Any() == true)
@@ -74,6 +74,11 @@ namespace DockerPull
             }
             else
             {
+                if (manifestlist.DigestLayer.schemaVersion != 2)
+                {
+                    Console.WriteLine($"不支持此协议 schemaVersion:{manifestlist.DigestLayer.schemaVersion}!");
+                    return;
+                }
                 digestLayer = manifestlist.DigestLayer;
             }
 
