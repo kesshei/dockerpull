@@ -24,7 +24,10 @@ linux  下
 复制到 /usr/local/bin/dockerpull 目录 
 然后使用 chmod + x /usr/local/bin/dockerpull 添加执行权限
 
-
+### 支持范围
+支持DockerHub官方和亚马逊官方源
+https://hub.docker.com/
+https://gallery.ecr.aws/
 
 ### 主要参考
 ```
